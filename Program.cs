@@ -60,7 +60,7 @@ namespace Simplark
 							break;
 						}
 
-						api.StatusesUpdate(String.Join(" ", cmd.Skip(1)));
+						Console.WriteLine(api.StatusesUpdate(String.Join(" ", cmd.Skip(1))));
 						break;
 
 					case "tl":
@@ -78,7 +78,7 @@ namespace Simplark
 								break;
 							}
 						}
-						api.StatusesHomeTineline(count);
+						Console.WriteLine(api.StatusesHomeTineline(count));
 						break;
 
 					case "q":
@@ -95,7 +95,11 @@ namespace Simplark
 						break;
 
 					case "koinichi":
-						api.LoginAsKoinichi();
+						api.LoginAs(_settings["koinichi_key"], _settings["koinichi_secret"]);
+						api.printKeys();
+						break;
+
+					case "print":
 						api.printKeys();
 						break;
 

@@ -8,6 +8,32 @@ using System.Threading.Tasks;
 
 namespace Simplark
 {
+	class OAuthResponse : Response
+	{
+		public OAuthResponse(string rawStr, bool isSuccess = true) : base(rawStr, isSuccess)
+		{	
+		}
+
+		protected override Dictionary<String, String> DecodeResponse(string response)
+		{
+			Dictionary<String, String> param = new Dictionary<string, string>();
+			foreach (var entry in response.Split('&'))
+			{
+				var kvp = entry.Split('=');
+				try
+				{
+					param.Add(kvp[0], kvp[1]);
+				}
+				catch
+				{
+					Console.WriteLine("Something is wrong with the response I got : " + response);
+					return new Dictionary<string, string>();
+				}
+			}
+			return param;
+		}
+	}
+
 	class OAuth
 	{
 		public readonly string ConsumerKey;

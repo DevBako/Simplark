@@ -10,7 +10,7 @@ namespace Simplark
 	class URL
 	{
 		public const string ApiBaseUrl = "https://api.twitter.com/";
-		
+
 		public const string OAuthAccessToken = "oauth/access_token";
 		public const string OAuthAccessUrl = ApiBaseUrl + OAuthAccessToken;
 
@@ -18,56 +18,16 @@ namespace Simplark
 		public const string OAuthAuthorizeUrl = ApiBaseUrl + OAuthAuthorize;
 	}
 
-	class APIResponse
+
+	class APIResponse : Response
 	{
-		public readonly string rawStr;
-		public readonly bool isSuccess;
-
-		private Dictionary<String, String> _params;
-
-		public APIResponse(string rawStr, bool isSuccess = true)
+		public APIResponse(string rawStr, bool isSuccess = true) : base(rawStr, isSuccess)
 		{
-			this.rawStr = rawStr;
-			this.isSuccess = isSuccess;
-			_params = DecodeResponseParam(rawStr);
 		}
 
-		public string this[string key]
-		{
-			get
-			{
-				if (_params.ContainsKey(key))
-				{
-					return _params[key];
-				}
-				return null;
-			}
-			set
-			{
-				if (!_params.ContainsKey(key))
-				{
-					_params.Add(key, "");
-				}
-				_params[key] = value;
-			}
-		}
-
-		private Dictionary<String, String> DecodeResponseParam(string response, char delimeter = '&')
+		protected override Dictionary<String, String> DecodeResponse(string response)
 		{
 			Dictionary<String, String> param = new Dictionary<string, string>();
-			foreach (var entry in response.Split(delimeter))
-			{
-				var kvp = entry.Split('=');
-				try
-				{
-					param.Add(kvp[0], kvp[1]);
-				}
-				catch
-				{
-					Console.WriteLine("Something is wrong with the response I got : " + response);
-					return new Dictionary<string, string>();
-				}
-			}
 			return param;
 		}
 	}
@@ -93,7 +53,7 @@ namespace Simplark
 			ConsumerSecret = consumerSecret;
 		}
 
-		private APIResponse PostRequest(string url, List<KeyValuePair<String, String>> headers, List<KeyValuePair<String, String>> param)
+		private HttpResponseMessage PostRequest(string url, List<KeyValuePair<String, String>> headers, List<KeyValuePair<String, String>> param)
 		{
 			var http = new HttpClient();
 			var content = new FormUrlEncodedContent(param);
@@ -103,12 +63,10 @@ namespace Simplark
 				http.DefaultRequestHeaders.Add(entry.Key, entry.Value);
 			}
 
-			var response = http.PostAsync(url, content).Result;
-			return new APIResponse(response.Content.ReadAsStringAsync().Result,
-								   response.IsSuccessStatusCode);
+			return http.PostAsync(url, content).Result;
 		}
 
-		public APIResponse GetRequest(string url, List<KeyValuePair<String, String>> headers, List<KeyValuePair<String, String>> param)
+		public HttpResponseMessage GetRequest(string url, List<KeyValuePair<String, String>> headers, List<KeyValuePair<String, String>> param)
 		{
 			var http = new HttpClient();
 			var content = new FormUrlEncodedContent(param);
@@ -119,12 +77,10 @@ namespace Simplark
 			}
 			url = url + "?" + String.Join("&", param.Select(x => String.Format("{0}={1}", Helper.EncodeRFC3986(x.Key), Helper.EncodeRFC3986(x.Value))));
 
-			var response = http.GetAsync(url).Result;
-			return new APIResponse(response.Content.ReadAsStringAsync().Result,
-								   response.IsSuccessStatusCode);
+			return http.GetAsync(url).Result;
 		}
 
-		private APIResponse OAuthRequestToken()
+		private OAuthResponse OAuthRequestToken()
 		{
 			OAuth oauth = new OAuth(ConsumerKey, ConsumerSecret);
 			string url = URL.ApiBaseUrl + "oauth/request_token";
@@ -136,7 +92,9 @@ namespace Simplark
 
 			List<KeyValuePair<String, String>> body = new List<KeyValuePair<String, String>>();
 
-			return PostRequest(url, header, body);
+			var response = PostRequest(url, header, body);
+			return new OAuthResponse(response.Content.ReadAsStringAsync().Result,
+								     response.IsSuccessStatusCode);
 		}
 
 		private string Authorize()
@@ -148,7 +106,7 @@ namespace Simplark
 			return Console.ReadLine();
 		}
 
-		private APIResponse OAuthAccessToken(string pin)
+		private OAuthResponse OAuthAccessToken(string pin)
 		{
 			OAuth oauth = new OAuth(ConsumerKey, ConsumerSecret, AccessToken, AccessSecret);
 			string url = URL.ApiBaseUrl + "oauth/access_token";
@@ -161,12 +119,14 @@ namespace Simplark
 			List<KeyValuePair<String, String>> body = new List<KeyValuePair<String, String>>();
 			body.Add(new KeyValuePair<String, String>("oauth_verifier", pin));
 
-			return PostRequest(url, header, body);
+			var response= PostRequest(url, header, body);
+			return new OAuthResponse(response.Content.ReadAsStringAsync().Result,
+									 response.IsSuccessStatusCode);
 		}
 		
 		public bool Login()
 		{
-			APIResponse response;
+			OAuthResponse response;
 
 			response = OAuthRequestToken();
 			if (!response.isSuccess)
@@ -194,10 +154,10 @@ namespace Simplark
 			return true;
 		}
 
-		public void LoginAsKoinichi()
+		public void LoginAs(string accessToken, string accessSecret)
 		{
-			AccessToken = "wut";
-			AccessSecret = "wut";
+			AccessToken = accessToken;
+			AccessSecret = accessSecret;
 		}
 
 		public APIResponse StatusesUpdate(string status)
@@ -214,12 +174,28 @@ namespace Simplark
 			List<KeyValuePair<String, String>> body = new List<KeyValuePair<String, String>>();
 			body.Add(new KeyValuePair<string, string>("status", status));
 
-			return PostRequest(url, header, body);
+			var response = PostRequest(url, header, body);
+			return new APIResponse(response.Content.ReadAsStringAsync().Result,
+								   response.IsSuccessStatusCode);
 		}
 
 		public APIResponse StatusesHomeTineline(int count = 15)
 		{
-			return new APIResponse("");
+			OAuth oauth = new OAuth(ConsumerKey, ConsumerSecret, AccessToken, AccessSecret);
+			var url = URL.ApiBaseUrl + "1.1/statuses/home_timeline.json";
+
+			List<KeyValuePair<string, string>> param = new List<KeyValuePair<string, string>>();
+			param.Add(new KeyValuePair<string, string>("count", count.ToString()));
+
+			List<KeyValuePair<String, String>> header = new List<KeyValuePair<String, String>>();
+			header.Add(new KeyValuePair<String, String>("Authorization", oauth.GenerateOAuthHeader(url, "GET", param)));
+
+			List<KeyValuePair<String, String>> body = new List<KeyValuePair<String, String>>();
+			body.Add(new KeyValuePair<string, string>("count", count.ToString()));
+
+			var response = GetRequest(url, header, body);
+			return new APIResponse(response.Content.ReadAsStringAsync().Result,
+								   response.IsSuccessStatusCode);
 		}
 
 		public void printKeys()

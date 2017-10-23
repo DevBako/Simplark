@@ -7,7 +7,46 @@ using System.Threading.Tasks;
 
 namespace Simplark
 {
-	public class Helper
+	abstract class Response
+	{
+		public readonly string rawStr;
+		public readonly bool isSuccess;
+
+		protected Dictionary<String, String> _params;
+
+		public Response(string rawStr, bool isSuccess = true)
+		{
+			this.rawStr = rawStr;
+			this.isSuccess = isSuccess;
+			_params = DecodeResponse(rawStr);
+		}
+		
+		public string this[string key]
+		{
+			get
+			{
+				if (_params.ContainsKey(key))
+				{
+					return _params[key];
+				}
+				return null;
+			}
+			set
+			{
+				if (!_params.ContainsKey(key))
+				{
+					_params.Add(key, "");
+				}
+				_params[key] = value;
+			}
+		}
+
+		protected virtual Dictionary<String, String> DecodeResponse(string rawStr)
+		{
+			throw new NotImplementedException();
+		}
+	}
+	class Helper
 	{
 		public static int GenerateTimestamp()
 		{
